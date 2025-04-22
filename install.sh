@@ -38,11 +38,11 @@ cat > "$SERVER_DIR/server.conf" <<EOF
 port $VPN_PORT
 proto $VPN_PROTOCOL
 dev tun
-ca $SERVER_DIR/ca.crt
-cert $SERVER_DIR/$SERVER_NAME.crt
-key $SERVER_DIR/$SERVER_NAME.key
-dh $SERVER_DIR/dh.pem
-tls-auth $SERVER_DIR/ta.key 0
+ca ca.crt
+cert $SERVER_NAME.crt
+key $SERVER_NAME.key
+dh dh.pem
+tls-auth ta.key 0
 server $VPN_SUBNET $VPN_NETMASK
 push "redirect-gateway def1 bypass-dhcp"
 push "dhcp-option DNS 1.1.1.1"
@@ -67,14 +67,16 @@ echo "==> Setting up UFW rules..."
 ufw allow OpenSSH
 ufw allow $VPN_PORT/$VPN_PROTOCOL
 
-# NAT setup for UFW
-sed -i '/^*filter/i *nat\n:POSTROUTING ACCEPT [0:0]\n-A POSTROUTING -s 10.8.0.0/8 -o eth0 -j MASQUERADE\nCOMMIT\n' /etc/ufw/before.rules
+# Detect default network interface
+INTERFACE=$(ip route get 8.8.8.8 | awk '{print $5}' | head -1)
+
+# NAT rules
+sed -i '/^*filter/i *nat\n:POSTROUTING ACCEPT [0:0]\n-A POSTROUTING -s 10.8.0.0/8 -o '"$INTERFACE"' -j MASQUERADE\nCOMMIT\n' /etc/ufw/before.rules
 sed -i 's/^DEFAULT_FORWARD_POLICY.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
 ufw disable && ufw enable
 
-echo "==> Enabling OpenVPN server..."
-systemctl start openvpn@server
-systemctl enable openvpn@server
+echo "==> Enabling correct OpenVPN service..."
+systemctl enable openvpn-server@server
+systemctl start openvpn-server@server
 
-echo "✅ OpenVPN Server Setup Complete!"
-echo "✅ Use './add_openvpn_user.sh' to create clients"
+echo "✅ OpenVPN Server is installed and running!"
